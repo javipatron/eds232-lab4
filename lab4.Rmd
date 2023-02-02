@@ -5,7 +5,6 @@ date: "`r Sys.Date()`"
 output:
   pdf_document:
     latex_engine: xelatex
-    
 ---
 
 ```{r setup, include=FALSE}
@@ -30,13 +29,15 @@ Predictors: *YrFireName, Species, Genus_species, DBH_cm, CVS_percent, BCHM_m, BT
 
 ```{r}
 
-trees_dat <- read_csv(file = "https://raw.githubusercontent.com/MaRo406/eds-232-machine-learning/main/data/trees-dat.csv")
+trees_dat <- read_csv(file = "https://raw.githubusercontent.com/MaRo406/eds-232-machine-learning/main/data/trees-dat.csv") |> 
+  mutate_if(is.ordered, factor, ordered = FALSE)
 
 ```
 
 > Question 1: Recode all the predictors to a zero_based integer form
 
 ### Data Splitting
+
 ```{r}
 
 trees <- trees_dat |> 
@@ -53,50 +54,36 @@ trees <- trees_dat |>
 
 # Create a splitted data frame
 trees_split <- trees |> 
-  initial_split(prop = 0.7)
+  initial_split(prop = 0.7, strata = "yr1status")
 
 tree_train <- training(trees_split)
 tree_test <- testing(trees_split)
 
 ```
 
+> Question 3: How many observations are we using for training with this split? *Response: For the training set we are using 25,246 observations. ´r dim(tree_train)[1]´*
 
-> Question 3: How many observations are we using for training with this split?
-*Response: For the training set we are using 25,246 observations.*
-
-### Simple Logistic Regression 
+### Simple Logistic Regression
 
 Let's start our modeling effort with some simple models: one predictor and one outcome each.
 
 > Question 4: Choose the three predictors that most highly correlate with our outcome variable for further investigation.
 
 ```{r}
-cv_model1 <- train(
-  YrFireName ~ ., 
-  data = tree_train, 
-  method = "glm",
-  family = "binomial",
-  trControl = trainControl(method = "cv", number = 10)
-)
-```
 
-
-```{r}
-
-vip(trees_predictors, num_features = 3, method = "model")
+vip(tree_train, num_features = 3, method = "model")
 
 ```
-
 
 ```{r }
 # Load the corrplot package
 library(corrplot)
 
 # Obtain correlation matrix
-corr_matix <- cor(trees_predictors)
+tree_matrix <- cor(trees)
 
 # Make a correlation plot between the variables
-corrplot(corr_matrix, 
+corrplot(tree_matrix, 
          method = "shade", 
          shade.col = NA, 
          tl.col = "black", 
@@ -107,17 +94,99 @@ corrplot(corr_matrix,
 
 ```
 
-
-
 > Question 5: Use glm() to fit three simple logistic regression models, one for each of the predictors you identified.
 
-### Interpret the Coefficients 
+```{r}
+
+model1 <- glm(yr1status ~ CVS_percent,
+              family = binomial,
+              data= tree_train)
+
+model2 <- glm(yr1status ~ BCHM_m,
+              data = tree_train,
+              family = binomial)
+
+model3 <- glm(yr1status ~ DBH_cm,
+              data = tree_train,
+              family = binomial)
+
+```
+
+> Question 6: That said, take a stab at interpreting our model coefficients now.
+
+### Interpret the Coefficients
 
 We aren't always interested in or able to interpret the model coefficients in a machine learning task. Often predictive accuracy is all we care about.
 
-> Question 6: That said, take a stab at interpreting our model coefficients now.
->
+```{r}
+tidy(model1)
+
+exp(coef(model1))
+exp(coef(model2))
+exp(coef(model3))
+
+```
+
+*Response: Predicting results*
+
+Model 1: For the odds of a tree to be alive after 1 year of the fire ( yr1status = 1), the CVS_percent (Crown Volume Scratch) affects by 1.0798 for every percents that it increases.
+
+Model 2: For the odds of a tree to be alive after 1 year of the fire ( yr1status = 1), the BCHM_m (maximum Bark Char vertical Height from ground on a tree bole in meters) affects with 1.2392 for every meter of bark char.
+
+Model 3: For the odds of a tree to be alive after 1 year of the fire ( yr1status = 1), the DBH (Diameter of Breast Height), has an effect of 0.942 for every increase in cm.
+
+**Variables full names:** 
+
+1. CVS_percent: Percent of the pre-fire crown volume that was scorched or consumed by fire (values 0 to 100). If measured, this is the CVS from field measurements. Otherwise it is the calculated CVS from crown length measurement,
+
+2.  BCHM_m: Maximum bark char (also called bole char, bole scorch in other publications) vertical height from ground on a tree bole, rounded to nearest 0.01 m
+
+3.  DBH_cm: Diameter at breast height rounded to nearest 0.1 cm
+
+Here is a quick photo explaining the effects of some variables in tree fires.
+
+[![How does fire kill trees?](fire_trees.png)](https://www.oregon.gov/odf/Documents/forestbenefits/post-fire-tree-mortality.pdf)
+
 > Question 7: Now let's visualize the results from these models. Plot the fit to the training data of each model.
+
+
+Plotting the results:
+```{r}
+#Model 1
+ggplot(tree_train, aes(x = CVS_percent, y = yr1status)) +
+  geom_point() +
+  labs(title = "Model 1",
+       subtitle = "Crown Volume Scratch") +
+ stat_smooth(method = "glm",  
+                  se = TRUE,
+                  method.args = list(family = "binomial"))
+
+```
+
+```{r}
+#Model 2
+ggplot(tree_train, aes(x = BCHM_m, y = yr1status)) +
+  geom_point() +
+  labs(title = "Model 2",
+       subtitle = "Bark Char Vertical Height (m)") +
+ stat_smooth(method = "glm",  
+                  se = TRUE,
+                  method.args = list(family = "binomial"))
+
+```
+
+```{r}
+#Model 1
+ggplot(tree_train, aes(x = DBH_cm, y = yr1status)) +
+  geom_point() +
+  labs(title = "Model 3",
+       subtitle = "Diameter at Breast Height (cm)") +
+ stat_smooth(method = "glm",  
+                  se = TRUE,
+                  method.args = list(family = "binomial"))
+
+```
+
 
 ### Multiple Logistic Regression
 
@@ -125,13 +194,108 @@ Let's not limit ourselves to a single-predictor model. More predictors might lea
 
 > Question 8: Use glm() to fit a multiple logistic regression called "logistic_full", with all three of the predictors included. Which of these are significant in the resulting model?
 
+```{r}
+#Estimating the coeefcicients with a Multiple Logistic Regression
+
+logistic_full <- glm(yr1status ~ CVS_percent + BCHM_m + DBH_cm,
+                   data = tree_train,
+                   family = binomial)
+
+```
+
+*Response: The most significant predictor is the Bark Char Height with 0.15878*
+
+
 ### Estimate Model Accuracy
 
 Now we want to estimate our model's generalizability using resampling.
 
 > Question 9: Use cross validation to assess model accuracy. Use caret::train() to fit four 10-fold cross-validated models (cv_model1, cv_model2, cv_model3, cv_model4) that correspond to each of the four models we've fit so far: three simple logistic regression models corresponding to each of the three key predictors (CVS_percent, DBH_cm, BCHM_m) and a multiple logistic regression model that combines all three predictors.
->
+
+Model 1: Crown Volume Scratch in percental
+```{r}
+# First 10-fold cross-validation
+# Model 1
+
+set.seed(123)
+cv_model1 <- train(yr1status ~ CVS_percent,
+                   data = tree_train,
+                   method = "glm",
+                   family = "binomial",
+                   trControl = trainControl(method = "cv", 
+                                            number = 10))
+
+```
+
+
+Model 2: Bark Char Volume Height in Meters
+```{r}
+# Second 10-fold cross-validation
+# Model 2
+
+set.seed(123)
+cv_model2 <- train(yr1status ~ BCHM_m,
+                   data = tree_train,
+                   method = "glm",
+                   family = "binomial",
+                   trControl = trainControl(method = "cv", 
+                                            number = 10))
+
+```
+
+
+Model 3: DBH_cm (Diameter at Breast Height in cm)
+```{r}
+# Third 10-fold cross-validation
+# Model 3
+
+set.seed(123)
+cv_model3 <- train(yr1status ~ DBH_cm,
+                   data = tree_train,
+                   method = "glm",
+                   family = "binomial",
+                   trControl = trainControl(method = "cv", 
+                                            number = 10))
+
+```
+
+
+Model 4: Calculating the model with all 3 predicted variables
+```{r}
+# Fourth 10-fold cross-validation
+# Model 4
+
+set.seed(123)
+cv_model4 <- train(yr1status ~ CVS_percent + BCHM_m + DBH_cm,
+                   data = tree_train,
+                   method = "glm",
+                   family = "binomial",
+                   trControl = trainControl(method = "cv", 
+                                            number = 10))
+
+```
+
+
+
 > Question 10: Use caret::resamples() to extract then compare the classification accuracy for each model. (Hint: resamples() wont give you what you need unless you convert the outcome variable to factor form). Which model has the highest accuracy?
+
+
+```{r}
+
+summary(
+  resamples(
+    list(
+      model1 = cv_model1, 
+      model2 = cv_model2, 
+      model3 = cv_model3,
+      model4 = cv_model4
+    )
+  )
+)$statistics$Accuracy
+
+
+```
+
 
 Let's move forward with this single most accurate model.
 

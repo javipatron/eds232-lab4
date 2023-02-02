@@ -55,7 +55,7 @@ churn_train <- recipe(attrition ~ ., data = churn_train) %>%
 
 
 ```{r specify_models_glm}
-#MonthlyIncome
+#Monthly Income
 model1 <- glm(data = churn_train, 
               Attrition ~ MonthlyIncome,
               family = "binomial")
