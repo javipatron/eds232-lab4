@@ -30,8 +30,7 @@ Predictors: *YrFireName, Species, Genus_species, DBH_cm, CVS_percent, BCHM_m, BT
 
 ```{r}
 
-trees_dat <- read_csv(file = "https://raw.githubusercontent.com/MaRo406/eds-232-machine-learning/main/data/trees-dat.csv") |> 
-  mutate_if(is.ordered, factor, ordered = FALSE)
+trees_dat <- read_csv(file = "https://raw.githubusercontent.com/MaRo406/eds-232-machine-learning/main/data/trees-dat.csv") |> mutate_if(is.ordered, factor, ordered = FALSE)
 
 ```
 
@@ -52,7 +51,6 @@ trees <- trees_dat |>
 > Question 2: Create trees_training (70%) and trees_test (30%) splits for the modeling
 
 ```{r}
-
 # Create a splitted data frame
 trees_split <- trees |> 
   initial_split(prop = 0.7, strata = "yr1status")
@@ -76,7 +74,7 @@ Let's start our modeling effort with some simple models: one predictor and one o
 
 ```{r}
 
-vip(tree_train, num_features = 3, method = "model")
+#vip(tree_train, num_features = 3, method = "model")
 
 ```
 
@@ -99,6 +97,16 @@ corrplot(tree_matrix,
 
 ```
 
+*Response: The three variables that i will choose as my predictors are: CVS_Percent, BCHM_m, and DBH_cm.*
+
+**Variables full names:**
+
+1.  CVS_percent: Percent of the pre-fire crown volume that was scorched or consumed by fire (values 0 to 100). If measured, this is the CVS from field measurements. Otherwise it is the calculated CVS from crown length measurement,
+
+2.  BCHM_m: Maximum bark char (also called bole char, bole scorch in other publications) vertical height from ground on a tree bole, rounded to nearest 0.01 m
+
+3.  DBH_cm: Diameter at breast height rounded to nearest 0.1 cm
+
 > Question 5: Use glm() to fit three simple logistic regression models, one for each of the predictors you identified.
 
 ```{r}
@@ -117,36 +125,35 @@ model3_dbh <- glm(yr1status ~ DBH_cm,
 
 ```
 
-> Question 6: That said, take a stab at interpreting our model coefficients now.
+3> Question 6: That said, take a stab at interpreting our model coefficients now.
 
 ### Interpret the Coefficients
 
 We aren't always interested in or able to interpret the model coefficients in a machine learning task. Often predictive accuracy is all we care about.
 
 ```{r}
-tidy(model1)
+#Exponentiate the coeeficients becuase they are log-transformed 
 
 exp(coef(model1_cvs))
 exp(coef(model2_bchm))
 exp(coef(model3_dbh))
 
+
+
+# WHY WHEN YOU DESELECT THE LAST COLUMN BTL, you have different model numbers?? What does the mutate_if(is.ordered, factor, ordered = FALSE), do to this ??
+
+INCOMPLETE !!
+
 ```
 
 *Response: Predicting results*
 
-Model 1: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicatively by 1.0798 for each unit of CVS_percent (Crown Volume Scratch)
+Model 1: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicatively by 1.0798 ´r exp(coef(model1_cvs))´ for each unit of CVS_percent (Crown Volume Scratch)
 
 Model 2: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicativly by 1.2392 for each unit of BCHM_m (maximum Bark Char vertical Height from ground on a tree bole in meters).
 
 Model 3: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicativly by 0.942 for each unit of DBH (Diameter of Breast Height).
 
-**Variables full names:**
-
-1.  CVS_percent: Percent of the pre-fire crown volume that was scorched or consumed by fire (values 0 to 100). If measured, this is the CVS from field measurements. Otherwise it is the calculated CVS from crown length measurement,
-
-2.  BCHM_m: Maximum bark char (also called bole char, bole scorch in other publications) vertical height from ground on a tree bole, rounded to nearest 0.01 m
-
-3.  DBH_cm: Diameter at breast height rounded to nearest 0.1 cm
 
 Here is a quick photo explaining the effects of some variables in tree fires.
 
@@ -156,9 +163,11 @@ Here is a quick photo explaining the effects of some variables in tree fires.
 
 Plotting the results:
 
+#SHOULD WE PLOT THE RESULTS IN THE TESTING DATA?
+
 ```{r}
 #Model 1
-ggplot(tree_test, aes(x = CVS_percent, y = yr1status)) +
+ggplot(tree_train, aes(x = CVS_percent, y = yr1status)) +
   geom_point() +
   labs(title = "Logistic Model 1",
        subtitle = "Crown Volume Scratch",
@@ -173,7 +182,7 @@ ggplot(tree_test, aes(x = CVS_percent, y = yr1status)) +
 
 ```{r}
 #Model 2
-ggplot(tree_test, aes(x = BCHM_m, y = yr1status)) +
+ggplot(tree_train, aes(x = BCHM_m, y = yr1status)) +
   geom_point() +
   labs(title = "Logistic Model 2",
        subtitle = "Bark Char Vertical Height (m)", 
@@ -188,7 +197,7 @@ ggplot(tree_test, aes(x = BCHM_m, y = yr1status)) +
 
 ```{r}
 #Model 3
-ggplot(tree_test, aes(x = DBH_cm, y = yr1status)) +
+ggplot(tree_train, aes(x = DBH_cm, y = yr1status)) +
   geom_point() +
   labs(title = "Logistic Model 3",
        subtitle = "Diameter at Breast Height (cm)",
@@ -226,13 +235,23 @@ Now we want to estimate our model's generalizability using resampling.
 
 > Question 9: Use cross validation to assess model accuracy. Use caret::train() to fit four 10-fold cross-validated models (cv_model1, cv_model2, cv_model3, cv_model4) that correspond to each of the four models we've fit so far: three simple logistic regression models corresponding to each of the three key predictors (CVS_percent, DBH_cm, BCHM_m) and a multiple logistic regression model that combines all three predictors.
 
+
+Check the class of my columns and factorize if needed
+```{r}
+#Just informative
+skim(tree_train)
+levels(as.factor(tree_train$yr1status))
+
+```
+
+
 Model 1: Crown Volume Scratch in percental
 
 ```{r}
 # First 10-fold cross-validation
 # Model 1
-
 set.seed(123)
+
 cv_model1_cvs <- train(as.factor(yr1status) ~ CVS_percent,
                    data = tree_train,
                    method = "glm",
@@ -247,8 +266,8 @@ Model 2: Bark Char Volume Height in Meters
 ```{r}
 # Second 10-fold cross-validation
 # Model 2
-
 set.seed(123)
+
 cv_model2_bchm <- train(as.factor(yr1status) ~ BCHM_m,
                    data = tree_train,
                    method = "glm",
@@ -263,8 +282,8 @@ Model 3: DBH_cm (Diameter at Breast Height in cm)
 ```{r}
 # Third 10-fold cross-validation
 # Model 3
-
 set.seed(123)
+
 cv_model3_dbh <- train(as.factor(yr1status) ~ DBH_cm,
                    data = tree_train,
                    method = "glm",
@@ -279,29 +298,28 @@ Model 4: Calculating the model with all 3 predicted variables
 ```{r}
 # Fourth 10-fold cross-validation
 # Model 4
-
 set.seed(123)
+
 cv_model4_all <- train(as.factor(yr1status) ~ CVS_percent + BCHM_m + DBH_cm,
                    data = tree_train,
                    method = "glm",
                    family = "binomial",
                    trControl = trainControl(method = "cv", 
                                             number = 10))
-
 ```
 
 > Question 10: Use caret::resamples() to extract then compare the classification accuracy for each model. (Hint: resamples() wont give you what you need unless you convert the outcome variable to factor form). Which model has the highest accuracy?
 
 ```{r}
-
 #Create a matrix that has a summary of the models
+
 models_accurarcy <- summary(
   resamples(
     list(
-      mod1 = cv_model1, 
-      mod2 = cv_model2, 
-      mod3 = cv_model3,
-      mod4 = cv_model4
+      mod1 = cv_model1_cvs, 
+      mod2 = cv_model2_bchm, 
+      mod3 = cv_model3_dbh,
+      mod4 = cv_model4_all
     )
   )
 )$statistics$Accuracy
@@ -322,7 +340,7 @@ print(paste("The model that has the highest accuarcy is", max(models_accurarcy[,
 
 ```
 
-*Response: The highest accurcy model comes from the multiple logistic regression model that has a mean accuarcy of 90.30% ´r max(models_accurarcy[,"Mean"])´.*
+*Response: The highest accuracy model comes from the multiple logistic regression model that has a mean accuracy of 90.30% ´r max(models_accuracy[,"Mean"])´.*
 
 Let's move forward with this single most accurate model.
 
@@ -332,8 +350,7 @@ Let's move forward with this single most accurate model.
 #Overall predict class
 
 predict_class <- predict(cv_model4_all, tree_train)
-
-confusion_matrix <- confusionMatrix(data = predict_class,
+train_confusion_matrix <- confusionMatrix(data = predict_class,
                                     reference = as.factor(tree_train$yr1status))
 
 
@@ -342,17 +359,17 @@ confusion_matrix <- confusionMatrix(data = predict_class,
 > Question 12: Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
 
 ```{r}
-knitr::kable(confusion_matrix$table,
+knitr::kable(train_confusion_matrix$table,
              col.names = c("Predicted Alive", "Predicted Dead"),
              padding = 1,
              align = "c",
              format = "pipe",
-             caption = "Confusion Matrix")
+             caption = "Training Confusion Matrix")
 
 
 ```
 
-*Response: The confusion Matrix is showing* that general "big" numbers lay within the "good" predictions. Which are the True Positive (TP) with 16486 observations and 6312 of True Negative (TN). However between the "bad" numbers there is a significant increase on false positive (FP) of 1,597 observations saying that the tree is predicted alive, but the true value is that is dead. Consequentenly for the remaining 851 observations they are False Negative (FN) meaning that the predicted value is Dead, but the true value is Alive.
+*Response: The confusion Matrix is showing* that highest predicted observations are within the "good" predictions. Which are the **True** Positive (TP) with 16,503 observations and 6,333 of **True** Negative (TN). However, between the "bad" numbers there is a significant increase on false positive (FP) of 1,580 observations saying that the tree is predicted alive, but the true value is that is dead. Consequeniatly for the remaining 830 observations they are False Negative (FN) meaning that the predicted value is Dead, but the true value is Alive.
 
 ![](exp_confusion_matrix.png)
 
@@ -360,16 +377,16 @@ Question 13: What is the overall accuracy of the model? How is this calculated?
 
 ```{r}
 #Indexing
-confusion_matrix$overall["Accuracy"]
+train_confusion_matrix$overall["Accuracy"]
 ```
 
-\*Response: The overall accuracy of the model is 90.30%. There is a formula to calculate the overall accuracy:
+\*Response: The overall accuracy of the model is 90.45%. There is a formula to calculate the overall accuracy:
 
-$Overall Accuarcy = TP + TN / total observations$
+$$Overall \text{ }Accuarcy = \frac{TP\text{ }+ \text{ }  TN} {\sum \text{ }(Total\text{ } Observations)}$$
 
 ```{r}
 # Manual Calculation
-(confusion_matrix$table[1] + confusion_matrix$table[4])/ dim(tree_train)[1]
+(confusion_matrix$table[1] + confusion_matrix$table[4]) / dim(tree_train)[1]
 ```
 
 ### Test Final Model
@@ -378,12 +395,91 @@ Alright, now we'll take our most accurate model and make predictions on some uns
 
 > Question 14: Now that we have identified our best model, evaluate it by running a prediction on the test data, trees_test.
 
-> ```{r}
->
-> ```
->
+```{r}
+
+test_model4_all <- train(as.factor(yr1status) ~ CVS_percent + BCHM_m + DBH_cm,
+                   data = tree_test,
+                   method = "glm",
+                   family = "binomial")
+
+test_prediction <- predict(cv_model4_all, tree_test) # CAN YOU USE THE K-FOLD MODEL FOR THIS TEST? WE HAVE A Similar SAME CONFUSION MATRIX RESULT
+
+test_confusion_matrix <- confusionMatrix(data = test_prediction,
+                 reference = as.factor(tree_test$yr1status))
+
+knitr::kable(test_confusion_matrix$table,
+             col.names = c("Predicted Alive", "Predicted Dead"),
+             padding = 1,
+             align = "c",
+             format = "pipe",
+             caption = "Test Confusion Matrix")
+
+```
+
+
 > Question 15: How does the accuracy of this final model on the test data compare to its cross validation accuracy? Do you find this to be surprising? Why or why not?
 
 ```{r}
 
+train_confusion_matrix$overall["Accuracy"]
+test_confusion_matrix$overall["Accuracy"]
+
 ```
+
+*Response: As you can see in the results the Accuracy of the model in the test data is very similar to the training. This will confirm that the stratification data at the beginning of the split was done nicely and qualitatively. In other words, our testing model is very accurate on the true data giving us confidence to try it out in unknown datasets.*
+
+
+
+PLS Logistic Regression.- Assess if reducing the dimension of our numeric predictors helps to improve accuracy.
+
+
+```{r}
+#Creating the two pls models (training and testing)
+
+set.seed(123)
+cv_model_pls <- train(
+  as.factor(yr1status) ~ ., 
+  data = tree_train, 
+  method = "pls",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 16)
+
+test_model_pls <- train(
+  as.factor(yr1status) ~ ., 
+  data = tree_test, 
+  method = "pls",
+  family = "binomial",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 16)
+
+
+```
+
+Graph the results
+```{r}
+
+df_test <- data.frame(test_model_pls$results[,1:2]) |> 
+  mutate(model_type = "test")
+df_cv <- data.frame(cv_model_pls$results[,1:2]) |> 
+  mutate(model_type = "cv train")
+
+model_merge <- rbind(df_test, df_cv)
+
+x <- 1:7
+
+ggplot(model_merge, aes(x = ncomp, y = Accuracy, col = model_type)) +
+  geom_line() + 
+  geom_point() +
+  labs(title = "PLS Cross Validation",
+       subtitle = "Models Comparison",
+       x = "Components",
+       y = "Accuracy (Cross-Validation)") +
+  scale_x_continuous(labels= as.character(x),breaks=x)
+
+```
+
+
+
