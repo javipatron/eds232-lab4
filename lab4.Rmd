@@ -15,6 +15,8 @@ library(tidymodels)
 library(caret)
 library(vip)
 library(knitr)
+library(xtable)
+library(kableExtra)
 
 ```
 
@@ -60,7 +62,7 @@ tree_test <- testing(trees_split)
 
 ```
 
-> Question 3: How many observations are we using for training with this split? *Response: For the training set we are using 25,246 observations. ´r dim(tree_train)[1]´*
+> Question 3: How many observations are we using for training with this split? *Response: For the training set we are using `r dim(tree_train)[1]` observations.*
 
 ```{r}
 dim(tree_train)[1]
@@ -72,13 +74,7 @@ Let's start our modeling effort with some simple models: one predictor and one o
 
 > Question 4: Choose the three predictors that most highly correlate with our outcome variable for further investigation.
 
-```{r}
-
-#vip(tree_train, num_features = 3, method = "model")
-
-```
-
-```{r }
+```{r, fig.align = 'center', out.width = "80%"}
 # Load the corrplot package
 library(corrplot)
 
@@ -97,15 +93,15 @@ corrplot(tree_matrix,
 
 ```
 
-*Response: The three variables that i will choose as my predictors are: CVS_Percent, BCHM_m, and DBH_cm.*
+*Response: The three variables that have the highest correlation with our target variable (yr1status) are: CVS_Percent, BCHM_m, and DBH_cm. We will use this 3 variables as our predictors for the model. It is important to take into consideration the symbols as positive correlations will affect our target variable towards death (CVS, BCHM) and the negative correlation towards life (DBH).*
 
 **Variables full names:**
 
-1.  CVS_percent: Percent of the pre-fire crown volume that was scorched or consumed by fire (values 0 to 100). If measured, this is the CVS from field measurements. Otherwise it is the calculated CVS from crown length measurement,
+1.  CVS_percent: Percent of the pre-fire crown volume that was scorched or consumed by fire (values 0 to 100). If measured, this is the CVS from field measurements. Otherwise it is the calculated CVS from crown length measurement.
 
-2.  BCHM_m: Maximum bark char (also called bole char, bole scorch in other publications) vertical height from ground on a tree bole, rounded to nearest 0.01 m
+2.  BCHM_m: Maximum bark char (also called bole char, bole scorch in other publications) vertical height from ground on a tree bole, rounded to nearest 0.01 m.
 
-3.  DBH_cm: Diameter at breast height rounded to nearest 0.1 cm
+3.  DBH_cm: Diameter at breast height rounded to nearest 0.1 cm.
 
 > Question 5: Use glm() to fit three simple logistic regression models, one for each of the predictors you identified.
 
@@ -125,45 +121,38 @@ model3_dbh <- glm(yr1status ~ DBH_cm,
 
 ```
 
-3> Question 6: That said, take a stab at interpreting our model coefficients now.
+Question 6: That said, take a stab at interpreting our model coefficients now.
 
 ### Interpret the Coefficients
 
 We aren't always interested in or able to interpret the model coefficients in a machine learning task. Often predictive accuracy is all we care about.
 
 ```{r}
-#Exponentiate the coeeficients becuase they are log-transformed 
+#Exponentiate the coefficients because they are log-transformed 
 
 exp(coef(model1_cvs))
 exp(coef(model2_bchm))
 exp(coef(model3_dbh))
 
-
-
-# WHY WHEN YOU DESELECT THE LAST COLUMN BTL, you have different model numbers?? What does the mutate_if(is.ordered, factor, ordered = FALSE), do to this ??
-
-INCOMPLETE !!
-
 ```
 
 *Response: Predicting results*
 
-Model 1: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicatively by 1.0798 ´r exp(coef(model1_cvs))´ for each unit of CVS_percent (Crown Volume Scratch)
+Model 1: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicatively by `r round(exp(coef(model1_cvs))[2],3)` for each unit of `CVS_percent` (Crown Volume Scratch)
 
-Model 2: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicativly by 1.2392 for each unit of BCHM_m (maximum Bark Char vertical Height from ground on a tree bole in meters).
+Model 2: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicativly by `r round(exp(coef(model2_bchm))[2],3)` for each unit of `BCHM_m` (maximum Bark Char vertical Height from ground on a tree bole in meters).
 
-Model 3: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicativly by 0.942 for each unit of DBH (Diameter of Breast Height).
+Model 3: The odds of a tree to be dead after 1 year of the fire ( yr1status = 1), increases multiplicativly by `r round(exp(coef(model3_dbh))[2],3)` for each unit of `DBH` (Diameter of Breast Height).
 
+Just for context and understanding of the variables, here is a quick photo explaining the effects of some variables in tree fires.
 
-Here is a quick photo explaining the effects of some variables in tree fires.
+[![How does fire kill trees? Oregon Deparment of Forestry (2020) Forest health fact sheet, Post-fire tree mortality. Available at: https://www.oregon.gov/odf/Documents/forestbenefits/post-fire-tree-mortality.pdf (Accessed: February 8, 2023).](fire_trees.png){width="90%"}](https://www.oregon.gov/odf/Documents/forestbenefits/post-fire-tree-mortality.pdf)
 
-[![How does fire kill trees?](fire_trees.png)](https://www.oregon.gov/odf/Documents/forestbenefits/post-fire-tree-mortality.pdf)
+*Image: How does fire kill trees? Oregon Department of Forestry (2020) Forest health fact sheet, Post-fire tree mortality. Available at: <https://www.oregon.gov/odf/Documents/forestbenefits/post-fire-tree-mortality.pdf> (Accessed: February 8, 2023).*
 
-> Question 7: Now let's visualize the results from these models. Plot the fit to the training data of each model.
+Question 7: Now let's visualize the results from these models. Plot the fit to the training data of each model.
 
 Plotting the results:
-
-#SHOULD WE PLOT THE RESULTS IN THE TESTING DATA?
 
 ```{r}
 #Model 1
@@ -173,11 +162,10 @@ ggplot(tree_train, aes(x = CVS_percent, y = yr1status)) +
        subtitle = "Crown Volume Scratch",
        y = "Probability of Tree Death",
        x = "Crown Volume Scorched (%)",
-       caption = "Tree Death = 1\n\n Tree Alive = 0") +
+       caption = "Y Axis:\n Tree Death = 1\n Tree Alive = 0") +
  stat_smooth(method = "glm",  
                   se = TRUE,
                   method.args = list(family = "binomial"))
-
 ```
 
 ```{r}
@@ -188,7 +176,7 @@ ggplot(tree_train, aes(x = BCHM_m, y = yr1status)) +
        subtitle = "Bark Char Vertical Height (m)", 
        y = "Probability of Tree Death",
        x = "BCHM (m)",
-       caption = "Tree Death = 1\n\n Tree Alive = 0") +
+       caption = "Y Axis:\n Tree Death = 1\n Tree Alive = 0") +
  stat_smooth(method = "glm",  
                   se = TRUE,
                   method.args = list(family = "binomial"))
@@ -203,7 +191,7 @@ ggplot(tree_train, aes(x = DBH_cm, y = yr1status)) +
        subtitle = "Diameter at Breast Height (cm)",
        y = "Probability of Tree Death",
        x = "Diameter at Breast Height (cm)",
-       caption = "Tree Death = 1\n\n Tree Alive = 0") +
+       caption = "Y Axis:\n Tree Death = 1\n Tree Alive = 0") +
  stat_smooth(method = "glm",  
                   se = TRUE,
                   method.args = list(family = "binomial"))
@@ -214,20 +202,19 @@ ggplot(tree_train, aes(x = DBH_cm, y = yr1status)) +
 
 Let's not limit ourselves to a single-predictor model. More predictors might lead to better model performance.
 
-> Question 8: Use glm() to fit a multiple logistic regression called "logistic_full", with all three of the predictors included. Which of these are significant in the resulting model?
+Question 8: Use glm() to fit a multiple logistic regression called "logistic_full", with all three of the predictors included. Which of these are significant in the resulting model?
 
 ```{r}
-#Estimating the coeefcicients with a Multiple Logistic Regression
+#Estimating the coefficients with a Multiple Logistic Regression
 
 logistic_full <- glm(yr1status ~ CVS_percent + BCHM_m + DBH_cm,
                    data = tree_train,
                    family = binomial)
 
-tidy(logistic_full)
 
 ```
 
-*Response: The most significant predictor is the Bark Char Height with 0.15878, but according to the p-value as they are higher than 0.05 they are statistically significant.*
+*Response: In this case, the highest coefficient is now for the Bark Char Height with `r tidy(logistic_full)[3,2]`, but according to the p-value as they are all lower than 0.05 they are statistically significant.*
 
 ### Estimate Model Accuracy
 
@@ -235,17 +222,16 @@ Now we want to estimate our model's generalizability using resampling.
 
 > Question 9: Use cross validation to assess model accuracy. Use caret::train() to fit four 10-fold cross-validated models (cv_model1, cv_model2, cv_model3, cv_model4) that correspond to each of the four models we've fit so far: three simple logistic regression models corresponding to each of the three key predictors (CVS_percent, DBH_cm, BCHM_m) and a multiple logistic regression model that combines all three predictors.
 
-
 Check the class of my columns and factorize if needed
+
 ```{r}
 #Just informative
-skim(tree_train)
-levels(as.factor(tree_train$yr1status))
+#skim(tree_train)
+#levels(as.factor(tree_train$yr1status))
 
 ```
 
-
-Model 1: Crown Volume Scratch in percental
+Model 1: Crown Volume Scratch in percentage
 
 ```{r}
 # First 10-fold cross-validation
@@ -313,7 +299,7 @@ cv_model4_all <- train(as.factor(yr1status) ~ CVS_percent + BCHM_m + DBH_cm,
 ```{r}
 #Create a matrix that has a summary of the models
 
-models_accurarcy <- summary(
+models_accuracy <- summary(
   resamples(
     list(
       mod1 = cv_model1_cvs, 
@@ -323,9 +309,13 @@ models_accurarcy <- summary(
     )
   )
 )$statistics$Accuracy
+```
 
+Printing the model Accuracy
 
-kable(models_accurarcy,
+```{r}
+
+kable(models_accuracy,
       padding = 1,
       digits = round(3),
       align = "c",
@@ -334,13 +324,7 @@ kable(models_accurarcy,
   
 ```
 
-```{r}
-
-print(paste("The model that has the highest accuarcy is", max(models_accurarcy[,"Mean"][1])))
-
-```
-
-*Response: The highest accuracy model comes from the multiple logistic regression model that has a mean accuracy of 90.30% ´r max(models_accuracy[,"Mean"])´.*
+*Response: The highest accuracy model comes from the multiple logistic regression model (model4). It has an accuracy of `r round(max(models_accuracy[,"Mean"]),4)`.*
 
 Let's move forward with this single most accurate model.
 
@@ -365,11 +349,9 @@ knitr::kable(train_confusion_matrix$table,
              align = "c",
              format = "pipe",
              caption = "Training Confusion Matrix")
-
-
 ```
 
-*Response: The confusion Matrix is showing* that highest predicted observations are within the "good" predictions. Which are the **True** Positive (TP) with 16,503 observations and 6,333 of **True** Negative (TN). However, between the "bad" numbers there is a significant increase on false positive (FP) of 1,580 observations saying that the tree is predicted alive, but the true value is that is dead. Consequeniatly for the remaining 830 observations they are False Negative (FN) meaning that the predicted value is Dead, but the true value is Alive.
+*Response: The confusion Matrix is showing a high Accuracy with `r train_confusion_matrix$overall[1]`. (\~ 90% accuracy). Going through the numbers in the matrix we have `r train_confusion_matrix$table[1]`as the True Positive (TP) observations and `r train_confusion_matrix$table[4]` as True Negative (TN). On the other hand, there are `r train_confusion_matrix$table[2]` within the False Positive (FP) observations saying that the observed trees are predicted alive, but their true value is that is dead. Following with `r train_confusion_matrix$table[3]` observations falling within the False Negative (FN) meaning that the predicted value is Dead Tree, but the true value is Alive.*
 
 ![](exp_confusion_matrix.png)
 
@@ -380,13 +362,13 @@ Question 13: What is the overall accuracy of the model? How is this calculated?
 train_confusion_matrix$overall["Accuracy"]
 ```
 
-\*Response: The overall accuracy of the model is 90.45%. There is a formula to calculate the overall accuracy:
+*Response: The overall accuracy of the model is \~ 90%. There is a formula to calculate the overall accuracy:*
 
 $$Overall \text{ }Accuarcy = \frac{TP\text{ }+ \text{ }  TN} {\sum \text{ }(Total\text{ } Observations)}$$
 
 ```{r}
 # Manual Calculation
-(confusion_matrix$table[1] + confusion_matrix$table[4]) / dim(tree_train)[1]
+(train_confusion_matrix$table[1] + train_confusion_matrix$table[4]) / dim(tree_train)[1]
 ```
 
 ### Test Final Model
@@ -402,7 +384,7 @@ test_model4_all <- train(as.factor(yr1status) ~ CVS_percent + BCHM_m + DBH_cm,
                    method = "glm",
                    family = "binomial")
 
-test_prediction <- predict(cv_model4_all, tree_test) # CAN YOU USE THE K-FOLD MODEL FOR THIS TEST? WE HAVE A Similar SAME CONFUSION MATRIX RESULT
+test_prediction <- predict(cv_model4_all, tree_test)
 
 test_confusion_matrix <- confusionMatrix(data = test_prediction,
                  reference = as.factor(tree_test$yr1status))
@@ -416,7 +398,6 @@ knitr::kable(test_confusion_matrix$table,
 
 ```
 
-
 > Question 15: How does the accuracy of this final model on the test data compare to its cross validation accuracy? Do you find this to be surprising? Why or why not?
 
 ```{r}
@@ -426,12 +407,17 @@ test_confusion_matrix$overall["Accuracy"]
 
 ```
 
-*Response: As you can see in the results the Accuracy of the model in the test data is very similar to the training. This will confirm that the stratification data at the beginning of the split was done nicely and qualitatively. In other words, our testing model is very accurate on the true data giving us confidence to try it out in unknown datasets.*
+*Response: As you can see in the results the Accuracy of the model in the test data is very similar to the training. This will confirm that the stratification data at the beginning of the split was done nicely and qualitatively. In other words, our testing model is very accurate on the true data giving us confidence to try it out in unknown data sets.*
 
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\--
 
+EXTRA.....
+
+Book Chapter 5: Logistic Regression
+
+<https://bradleyboehmke.github.io/HOML/logistic-regression.html>
 
 PLS Logistic Regression.- Assess if reducing the dimension of our numeric predictors helps to improve accuracy.
-
 
 ```{r}
 #Creating the two pls models (training and testing)
@@ -459,6 +445,7 @@ test_model_pls <- train(
 ```
 
 Graph the results
+
 ```{r}
 
 df_test <- data.frame(test_model_pls$results[,1:2]) |> 
@@ -480,6 +467,3 @@ ggplot(model_merge, aes(x = ncomp, y = Accuracy, col = model_type)) +
   scale_x_continuous(labels= as.character(x),breaks=x)
 
 ```
-
-
-
